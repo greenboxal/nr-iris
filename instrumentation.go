@@ -13,7 +13,7 @@ type NewRelic struct {
 	App newrelic.Application
 }
 
-func Apply(nr newrelic.Application, app iris.Framework) {
+func Apply(nr newrelic.Application, app *iris.Framework) {
 	app.Adapt(iris.Policies{
 		RouterWrapperPolicy: func(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
 			txn := nr.StartTransaction("*", w, r)
