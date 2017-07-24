@@ -2,7 +2,6 @@ package nriris
 
 import (
 	"github.com/newrelic/go-agent"
-	"net/http"
 
 	iris "gopkg.in/kataras/iris.v6"
 )
@@ -14,35 +13,27 @@ type NewRelic struct {
 }
 
 func Apply(nr newrelic.Application, app *iris.Framework) {
-	app.Adapt(iris.Policies{
-		RouterWrapperPolicy: func(w http.ResponseWriter, r *http.Request, next http.HandlerFunc) {
-			txn := nr.StartTransaction("*", w, r)
-
-			defer func() {
-				err := recover()
-
-				if err != nil {
-					switch err := err.(type) {
-					case error:
-						txn.NoticeError(err)
-					default:
-						txn.NoticeError(errWrapper{err})
-					}
-				}
-
-				txn.End()
-			}()
-
-			next(txn, r)
-		},
-	})
-
 	app.UseFunc(func(ctx *iris.Context) {
-		txn := ctx.ResponseWriter.(newrelic.Transaction)
-
-		txn.SetName(ctx.Request.URL.Path)
+		txn := nr.StartTransaction(ctx.Request.URL.Path, nil, ctx.Request)
 
 		ctx.Set(NewRelicTransaction, txn)
+
+		defer func() {
+			err := recover()
+
+			if err != nil {
+				switch err := err.(type) {
+				case error:
+					txn.NoticeError(err)
+				default:
+					txn.NoticeError(errWrapper{err})
+				}
+			} else {
+				txn.ResponseSent(NewResponse(ctx))
+			}
+
+			txn.End()
+		}()
 
 		ctx.Next()
 	})
